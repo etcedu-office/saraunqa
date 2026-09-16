@@ -1,0 +1,1000 @@
+<script>
+/**
+ * ============================================================================
+ * SAR AUN-QA v4.0 System - Frontend Scripts (External Version)
+ * ภาควิชาเทคโนโลยีและสื่อสารการศึกษา คณะศึกษาศาสตร์ มหาวิทยาลัยมหาสารคาม
+ * 
+ * เวอร์ชันนี้ใช้ fetch() แทน google.script.run
+ * สามารถ Host บน GitHub Pages, Netlify, Vercel ได้
+ * ============================================================================
+ */
+
+// ==================== API CONFIGURATION ====================
+/**
+ * ⚠️ สำคัญ: เปลี่ยน URL นี้เป็น URL ของ Apps Script Web App ที่ Deploy แล้ว
+ * 
+ * วิธีรับ URL:
+ * 1. เปิด Apps Script Editor
+ * 2. Deploy > New Deployment
+ * 3. เลือก Type: Web app
+ * 4. Execute as: Me
+ * 5. Who has access: Anyone
+ * 6. คัดลอก URL ที่ได้มาใส่ด้านล่าง
+ * 
+ * ตัวอย่าง: 'https://script.google.com/macros/s/AKfycbx.../exec'
+ */
+const API_BASE_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
+
+// ==================== API HELPER FUNCTION ====================
+/**
+ * เรียก API ผ่าน fetch() แทน google.script.run
+ * @param {string} functionName - ชื่อฟังก์ชันใน Code.gs
+ * @param {Array} params - พารามิเตอร์ที่ส่งไป
+ * @returns {Promise<Object>} - ผลลัพธ์จาก API
+ */
+async function callAPI(functionName, params = []) {
+  try {
+    // เพิ่ม cache-busting parameter
+    const url = `${API_BASE_URL}?t=${Date.now()}`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({
+        function: functionName,
+        params: params
+      }),
+      redirect: 'follow'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
+    
+  } catch (error) {
+    console.error(`❌ API Error [${functionName}]:`, error);
+    return { 
+      success: false, 
+      message: `เกิดข้อผิดพลาดในการเชื่อมต่อ: ${error.message}` 
+    };
+  }
+}
+
+// ==================== GLOBAL STATE ====================
+const AppState = {
+  token: null,
+  user: null,
+  currentPage: 'dashboard',
+  academicYear: '2567',
+  programmeId: 'P001',
+  radarChart: null,
+  criteria: [],
+  scores: [],
+  evidence: []
+};
+
+// ==================== INITIALIZATION ====================
+document.addEventListener('DOMContentLoaded', function() {
+  // Check if user is already logged in (session stored in localStorage)
+  const savedToken = localStorage.getItem('sar_token');
+  const savedUser = localStorage.getItem('sar_user');
+  
+  if (savedToken && savedUser) {
+    AppState.token = savedToken;
+    AppState.user = JSON.parse(savedUser);
+    showMainApp();
+    loadDashboard();
+  }
+  
+  // Setup event listeners
+  setupEventListeners();
+});
+
+function setupEventListeners() {
+  // Login form
+  document.getElementById('loginForm').addEventListener('submit', handleLogin);
+  
+  // SAR form
+  document.getElementById('sarForm').addEventListener('submit', handleSARSubmit);
+  
+  // Evidence form
+  document.getElementById('evidenceForm').addEventListener('submit', handleEvidenceSubmit);
+  
+  // Score form
+  document.getElementById('scoreForm').addEventListener('submit', handleScoreSubmit);
+  
+  // Config form
+  document.getElementById('configForm').addEventListener('submit', handleConfigSubmit);
+  
+  // Academic year selector
+  document.getElementById('academicYearSelect').addEventListener('change', function(e) {
+    AppState.academicYear = e.target.value;
+    document.getElementById('currentYearDisplay').textContent = e.target.value;
+    if (AppState.currentPage === 'dashboard') {
+      loadDashboard();
+    }
+  });
+}
+
+// ==================== AUTHENTICATION ====================
+async function handleLogin(e) {
+  e.preventDefault();
+  
+  const username = document.getElementById('loginUsername').value;
+  const password = document.getElementById('loginPassword').value;
+  const loginBtn = document.getElementById('loginBtn');
+  const errorDiv = document.getElementById('loginError');
+  
+  // Disable button and show loading
+  loginBtn.disabled = true;
+  loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> กำลังเข้าสู่ระบบ...';
+  errorDiv.classList.add('hidden');
+  
+  try {
+    const result = await callAPI('loginUser', [username, password]);
+    
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i> เข้าสู่ระบบ';
+    
+    if (result.success) {
+      AppState.token = result.token;
+      AppState.user = result.user;
+      
+      // Save to localStorage
+      localStorage.setItem('sar_token', result.token);
+      localStorage.setItem('sar_user', JSON.stringify(result.user));
+      
+      showMainApp();
+      loadDashboard();
+      showToast('success', 'เข้าสู่ระบบสำเร็จ', `ยินดีต้อนรับ ${result.user.fullName}`);
+    } else {
+      errorDiv.textContent = result.message;
+      errorDiv.classList.remove('hidden');
+    }
+  } catch (error) {
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i> เข้าสู่ระบบ';
+    errorDiv.textContent = 'เกิดข้อผิดพลาด: ' + error.message;
+    errorDiv.classList.remove('hidden');
+  }
+}
+
+async function handleLogout() {
+  if (confirm('ต้องการออกจากระบบหรือไม่?')) {
+    await callAPI('logoutUser', [AppState.token]);
+    localStorage.removeItem('sar_token');
+    localStorage.removeItem('sar_user');
+    AppState.token = null;
+    AppState.user = null;
+    showLoginScreen();
+  }
+}
+
+function showLoginScreen() {
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('mainApp').classList.add('hidden');
+}
+
+function showMainApp() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('mainApp').classList.remove('hidden');
+  
+  // Update user info in sidebar
+  document.getElementById('sidebarUserName').textContent = AppState.user.fullName;
+  document.getElementById('sidebarUserRole').textContent = AppState.user.role;
+  
+  // Hide admin menu if not admin
+  if (AppState.user.role !== 'Admin') {
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  }
+}
+
+function togglePasswordVisibility() {
+  const passInput = document.getElementById('loginPassword');
+  const icon = document.getElementById('togglePasswordIcon');
+  
+  if (passInput.type === 'password') {
+    passInput.type = 'text';
+    icon.classList.replace('fa-eye', 'fa-eye-slash');
+  } else {
+    passInput.type = 'password';
+    icon.classList.replace('fa-eye-slash', 'fa-eye');
+  }
+}
+
+// ==================== NAVIGATION ====================
+function navigateTo(page) {
+  // Hide all pages
+  document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
+  
+  // Show target page
+  const targetPage = document.getElementById('page-' + page);
+  if (targetPage) {
+    targetPage.classList.remove('hidden');
+  }
+  
+  // Update nav active state
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const activeNav = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (activeNav) {
+    activeNav.classList.add('active');
+  }
+  
+  // Update page title
+  const titles = {
+    'dashboard': { title: 'แดชบอร์ด', subtitle: 'ภาพรวมผลการดำเนินงาน SAR' },
+    'sar-entry': { title: 'กรอกข้อมูล SAR', subtitle: 'บันทึกข้อมูลตามเกณฑ์ PDCA' },
+    'evidence': { title: 'คลังหลักฐาน', subtitle: 'จัดการเอกสารหลักฐาน' },
+    'scores': { title: 'ประเมินคะแนน', subtitle: 'ให้คะแนนตามเกณฑ์ AUN-QA' },
+    'criteria': { title: 'เกณฑ์ AUN-QA', subtitle: 'รายละเอียด 8 เกณฑ์' },
+    'staff': { title: 'บุคลากร', subtitle: 'ข้อมูลคณาจารย์และบุคลากร' },
+    'outputs': { title: 'ผลงานวิชาการ', subtitle: 'ผลงานตีพิมพ์และสิ่งประดิษฐ์' },
+    'admin': { title: 'จัดการระบบ', subtitle: 'ตั้งค่าและจัดการผู้ใช้' }
+  };
+  
+  if (titles[page]) {
+    document.getElementById('pageTitle').textContent = titles[page].title;
+    document.getElementById('pageSubtitle').textContent = titles[page].subtitle;
+  }
+  
+  AppState.currentPage = page;
+  
+  // Load page data
+  switch(page) {
+    case 'dashboard': loadDashboard(); break;
+    case 'sar-entry': loadSARPage(); break;
+    case 'evidence': loadEvidence(); break;
+    case 'scores': loadScores(); break;
+    case 'criteria': loadCriteria(); break;
+    case 'staff': loadStaff(); break;
+    case 'outputs': loadOutputs(); break;
+    case 'admin': loadAdmin(); break;
+  }
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ==================== DASHBOARD ====================
+async function loadDashboard() {
+  showLoading();
+  
+  try {
+    const result = await callAPI('getSARDashboardData', [
+      AppState.academicYear, AppState.programmeId, AppState.token
+    ]);
+    
+    hideLoading();
+    
+    if (result.success) {
+      updateDashboardUI(result.data);
+    } else {
+      showToast('error', 'เกิดข้อผิดพลาด', result.message);
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('error', 'เกิดข้อผิดพลาด', error.message);
+  }
+}
+
+function updateDashboardUI(data) {
+  // Update stats
+  document.getElementById('statTotalScore').textContent = data.totalScore;
+  document.getElementById('statCompletion').textContent = data.completionRate + '%';
+  
+  // Update criteria status list
+  const statusList = document.getElementById('criteriaStatusList');
+  statusList.innerHTML = '';
+  
+  data.criteria.forEach(criterion => {
+    const statusColors = {
+      'green': 'bg-green-100 text-green-700',
+      'yellow': 'bg-yellow-100 text-yellow-700',
+      'red': 'bg-red-100 text-red-700',
+      'gray': 'bg-gray-100 text-gray-500'
+    };
+    
+    const statusText = {
+      'green': 'ดีมาก',
+      'yellow': 'ปานกลาง',
+      'red': 'ต้องปรับปรุง',
+      'gray': 'ยังไม่ได้ประเมิน'
+    };
+    
+    const progressColor = {
+      'green': 'bg-green-500',
+      'yellow': 'bg-yellow-500',
+      'red': 'bg-red-500',
+      'gray': 'bg-gray-300'
+    };
+    
+    const progressWidth = (criterion.selfScore / 7) * 100;
+    
+    statusList.innerHTML += `
+      <div class="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
+        <div class="flex-1">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-sm font-semibold text-msu-gray-700">เกณฑ์ ${criterion.no}</span>
+            <span class="score-badge score-badge-${criterion.status}">${statusText[criterion.status]}</span>
+          </div>
+          <p class="text-xs text-msu-gray-500 mb-2">${criterion.titleTH}</p>
+          <div class="progress-bar">
+            <div class="progress-bar-fill ${progressColor[criterion.status]}" style="width: ${progressWidth}%"></div>
+          </div>
+        </div>
+        <div class="ml-4 text-right">
+          <p class="text-2xl font-bold text-msu-orange-600">${criterion.selfScore || '-'}</p>
+          <p class="text-xs text-msu-gray-400">จาก 7</p>
+        </div>
+      </div>
+    `;
+  });
+  
+  // Render Radar Chart
+  renderRadarChart(data.criteria);
+}
+
+function renderRadarChart(criteria) {
+  const ctx = document.getElementById('radarChart').getContext('2d');
+  
+  // Destroy existing chart
+  if (AppState.radarChart) {
+    AppState.radarChart.destroy();
+  }
+  
+  const labels = criteria.map(c => `เกณฑ์ ${c.no}`);
+  const selfScores = criteria.map(c => c.selfScore || 0);
+  const assessorScores = criteria.map(c => c.assessorScore || 0);
+  
+  AppState.radarChart = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'คะแนนประเมินตนเอง',
+          data: selfScores,
+          backgroundColor: 'rgba(245, 124, 0, 0.2)',
+          borderColor: '#f57c00',
+          borderWidth: 2,
+          pointBackgroundColor: '#f57c00',
+          pointBorderColor: '#fff',
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: '#f57c00'
+        },
+        {
+          label: 'คะแนนผู้ประเมิน',
+          data: assessorScores,
+          backgroundColor: 'rgba(55, 71, 79, 0.2)',
+          borderColor: '#37474f',
+          borderWidth: 2,
+          pointBackgroundColor: '#37474f',
+          pointBorderColor: '#fff',
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: '#37474f'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        r: {
+          beginAtZero: true,
+          max: 7,
+          min: 0,
+          ticks: {
+            stepSize: 1,
+            font: { family: 'Sarabun', size: 10 },
+            backdropColor: 'transparent'
+          },
+          pointLabels: {
+            font: { family: 'Sarabun', size: 11, weight: '600' },
+            color: '#37474f'
+          },
+          grid: {
+            color: 'rgba(0, 0, 0, 0.05)'
+          },
+          angleLines: {
+            color: 'rgba(0, 0, 0, 0.05)'
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: { family: 'Sarabun', size: 12 },
+            padding: 20
+          }
+        }
+      }
+    }
+  });
+}
+
+// ==================== SAR ENTRY ====================
+async function loadSARPage() {
+  // Load criteria for dropdown
+  try {
+    const result = await callAPI('getRecords', ['Criteria', AppState.token]);
+    
+    if (result.success) {
+      const select = document.getElementById('sarCriterionSelect');
+      select.innerHTML = '<option value="">-- เลือกเกณฑ์ --</option>';
+      result.data.forEach(c => {
+        select.innerHTML += `<option value="${c.CriterionID}">เกณฑ์ ${c.CriterionNo}: ${c.TitleTH}</option>`;
+      });
+      AppState.criteria = result.data;
+    }
+  } catch (error) {
+    console.error('Error loading SAR page:', error);
+  }
+}
+
+async function loadSARForm() {
+  const criterionId = document.getElementById('sarCriterionSelect').value;
+  if (!criterionId) return;
+  
+  try {
+    const result = await callAPI('getRecords', ['Narratives', AppState.token]);
+    
+    if (result.success) {
+      const narrative = result.data.find(n => n.ReportID === criterionId);
+      if (narrative) {
+        document.getElementById('sarPlan').value = narrative.Plan || '';
+        document.getElementById('sarDo').value = narrative.Do || '';
+        document.getElementById('sarCheck').value = narrative.Check || '';
+        document.getElementById('sarAct').value = narrative.Act || '';
+        document.getElementById('sarStrengths').value = narrative.Strengths || '';
+        document.getElementById('sarImprovements').value = narrative.ImprovementAreas || '';
+      } else {
+        resetSARForm();
+      }
+    }
+  } catch (error) {
+    console.error('Error loading SAR form:', error);
+  }
+}
+
+async function handleSARSubmit(e) {
+  e.preventDefault();
+  
+  const criterionId = document.getElementById('sarCriterionSelect').value;
+  if (!criterionId) {
+    showToast('error', 'กรุณาเลือกเกณฑ์', 'โปรดเลือกเกณฑ์ที่ต้องการบันทึกข้อมูล');
+    return;
+  }
+  
+  const data = {
+    reportId: `${AppState.academicYear}_${AppState.programmeId}_${criterionId}`,
+    plan: document.getElementById('sarPlan').value,
+    do: document.getElementById('sarDo').value,
+    check: document.getElementById('sarCheck').value,
+    act: document.getElementById('sarAct').value,
+    strengths: document.getElementById('sarStrengths').value,
+    improvementAreas: document.getElementById('sarImprovements').value
+  };
+  
+  showLoading();
+  
+  try {
+    const result = await callAPI('saveSARNarrative', [data, AppState.token]);
+    
+    hideLoading();
+    
+    if (result.success) {
+      showToast('success', 'บันทึกสำเร็จ', result.message);
+    } else {
+      showToast('error', 'เกิดข้อผิดพลาด', result.message);
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('error', 'เกิดข้อผิดพลาด', error.message);
+  }
+}
+
+function resetSARForm() {
+  document.getElementById('sarForm').reset();
+}
+
+// ==================== EVIDENCE ====================
+async function loadEvidence() {
+  showLoading();
+  
+  try {
+    const result = await callAPI('getRecords', ['Evidence', AppState.token]);
+    
+    hideLoading();
+    
+    if (result.success) {
+      renderEvidenceTable(result.data);
+      AppState.evidence = result.data;
+      document.getElementById('statEvidence').textContent = result.data.length;
+    } else {
+      showToast('error', 'เกิดข้อผิดพลาด', result.message);
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('error', 'เกิดข้อผิดพลาด', error.message);
+  }
+}
+
+function renderEvidenceTable(data) {
+  const tbody = document.getElementById('evidenceTableBody');
+  
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-msu-gray-400">ยังไม่มีข้อมูลหลักฐาน</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = data.map(ev => `
+    <tr class="border-b border-gray-100">
+      <td class="p-3 font-mono text-xs">${ev.EvidenceCode || '-'}</td>
+      <td class="p-3 font-medium">${ev.Title || '-'}</td>
+      <td class="p-3">
+        <span class="px-2 py-1 bg-msu-orange-50 text-msu-orange-700 rounded text-xs font-medium">${ev.FileType || '-'}</span>
+      </td>
+      <td class="p-3">
+        ${ev.DriveURL ? `<a href="${ev.DriveURL}" target="_blank" class="text-blue-600 hover:underline text-xs"><i class="fas fa-external-link-alt mr-1"></i>เปิดลิงก์</a>` : '-'}
+      </td>
+      <td class="p-3 text-xs text-msu-gray-500">${ev.CreatedAt ? new Date(ev.CreatedAt).toLocaleDateString('th-TH') : '-'}</td>
+      <td class="p-3 text-center">
+        <button onclick="deleteEvidence('${ev._rowIndex}')" class="btn-icon text-red-500 hover:bg-red-50">
+          <i class="fas fa-trash text-xs"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function showAddEvidenceModal() {
+  document.getElementById('addEvidenceModal').classList.remove('hidden');
+}
+
+async function handleEvidenceSubmit(e) {
+  e.preventDefault();
+  
+  const data = {
+    reportId: `${AppState.academicYear}_${AppState.programmeId}`,
+    evidenceCode: document.getElementById('evCode').value,
+    title: document.getElementById('evTitle').value,
+    driveUrl: document.getElementById('evUrl').value,
+    fileType: document.getElementById('evType').value
+  };
+  
+  showLoading();
+  
+  try {
+    const result = await callAPI('saveEvidence', [data, AppState.token]);
+    
+    hideLoading();
+    
+    if (result.success) {
+      closeModal('addEvidenceModal');
+      document.getElementById('evidenceForm').reset();
+      loadEvidence();
+      showToast('success', 'เพิ่มหลักฐานสำเร็จ', result.message);
+    } else {
+      showToast('error', 'เกิดข้อผิดพลาด', result.message);
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('error', 'เกิดข้อผิดพลาด', error.message);
+  }
+}
+
+async function deleteEvidence(rowIndex) {
+  if (confirm('ต้องการลบหลักฐานนี้หรือไม่?')) {
+    showLoading();
+    
+    try {
+      const result = await callAPI('deleteRecord', ['Evidence', parseInt(rowIndex), AppState.token]);
+      
+      hideLoading();
+      
+      if (result.success) {
+        loadEvidence();
+        showToast('success', 'ลบสำเร็จ', result.message);
+      } else {
+        showToast('error', 'เกิดข้อผิดพลาด', result.message);
+      }
+    } catch (error) {
+      hideLoading();
+      showToast('error', 'เกิดข้อผิดพลาด', error.message);
+    }
+  }
+}
+
+// ==================== SCORES ====================
+async function loadScores() {
+  showLoading();
+  
+  try {
+    // Load criteria first
+    const criteriaResult = await callAPI('getRecords', ['Criteria', AppState.token]);
+    
+    if (criteriaResult.success) {
+      AppState.criteria = criteriaResult.data;
+      
+      // Load scores
+      const scoresResult = await callAPI('getRecords', ['Scores', AppState.token]);
+      
+      hideLoading();
+      
+      if (scoresResult.success) {
+        renderScoresTable(criteriaResult.data, scoresResult.data);
+      } else {
+        showToast('error', 'เกิดข้อผิดพลาด', scoresResult.message);
+      }
+    } else {
+      hideLoading();
+      showToast('error', 'เกิดข้อผิดพลาด', criteriaResult.message);
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('error', 'เกิดข้อผิดพลาด', error.message);
+  }
+}
+
+function renderScoresTable(criteria, scores) {
+  const tbody = document.getElementById('scoresTableBody');
+  
+  tbody.innerHTML = criteria.map(c => {
+    const score = scores.find(s => s.CriterionID === c.CriterionID);
+    const selfScore = score ? score.SelfScore : 0;
+    const assessorScore = score ? score.AssessorScore : 0;
+    const status = getScoreStatus(selfScore);
+    const statusText = { 'green': 'ดีมาก', 'yellow': 'ปานกลาง', 'red': 'ต้องปรับปรุง', 'gray': 'ยังไม่ได้ประเมิน' };
+    
+    return `
+      <tr class="border-b border-gray-100">
+        <td class="p-3 font-bold text-msu-orange-600">${c.CriterionNo}</td>
+        <td class="p-3">${c.TitleTH}</td>
+        <td class="p-3 text-center">
+          <span class="font-bold text-lg">${selfScore || '-'}</span>
+        </td>
+        <td class="p-3 text-center">
+          <span class="font-bold text-lg">${assessorScore || '-'}</span>
+        </td>
+        <td class="p-3 text-center">
+          <span class="score-badge score-badge-${status}">${statusText[status]}</span>
+        </td>
+        <td class="p-3 text-center">
+          <button onclick="showScoreModal('${c.CriterionID}', '${c.TitleTH}', ${selfScore}, ${assessorScore})" class="btn-icon bg-msu-orange-50 text-msu-orange-600 hover:bg-msu-orange-100">
+            <i class="fas fa-edit text-xs"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function getScoreStatus(score) {
+  if (score >= 5) return 'green';
+  if (score >= 3) return 'yellow';
+  if (score > 0) return 'red';
+  return 'gray';
+}
+
+function showScoreModal(criterionId, criterionName, selfScore, assessorScore) {
+  document.getElementById('scoreCriterionId').value = criterionId;
+  document.getElementById('scoreCriterionName').textContent = criterionName;
+  document.getElementById('scoreSelf').value = selfScore || '';
+  document.getElementById('scoreAssessor').value = assessorScore || '';
+  document.getElementById('scoreModal').classList.remove('hidden');
+}
+
+async function handleScoreSubmit(e) {
+  e.preventDefault();
+  
+  const data = {
+    reportId: `${AppState.academicYear}_${AppState.programmeId}`,
+    criterionId: document.getElementById('scoreCriterionId').value,
+    selfScore: parseInt(document.getElementById('scoreSelf').value) || 0,
+    assessorScore: parseInt(document.getElementById('scoreAssessor').value) || 0
+  };
+  
+  showLoading();
+  
+  try {
+    const result = await callAPI('saveScore', [data, AppState.token]);
+    
+    hideLoading();
+    
+    if (result.success) {
+      closeModal('scoreModal');
+      loadScores();
+      showToast('success', 'บันทึกคะแนนสำเร็จ', result.message);
+    } else {
+      showToast('error', 'เกิดข้อผิดพลาด', result.message);
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('error', 'เกิดข้อผิดพลาด', error.message);
+  }
+}
+
+// ==================== CRITERIA ====================
+async function loadCriteria() {
+  showLoading();
+  
+  try {
+    const result = await callAPI('getRecords', ['Criteria', AppState.token]);
+    
+    hideLoading();
+    
+    if (result.success) {
+      renderCriteriaCards(result.data);
+    } else {
+      showToast('error', 'เกิดข้อผิดพลาด', result.message);
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('error', 'เกิดข้อผิดพลาด', error.message);
+  }
+}
+
+function renderCriteriaCards(criteria) {
+  const container = document.getElementById('criteriaCards');
+  
+  const icons = ['fa-bullseye', 'fa-drafting-compass', 'fa-clipboard-check', 'fa-chalkboard-teacher', 'fa-user-tie', 'fa-hands-helping', 'fa-building', 'fa-trophy'];
+  const colors = ['blue', 'purple', 'green', 'yellow', 'orange', 'pink', 'indigo', 'red'];
+  
+  container.innerHTML = criteria.map((c, idx) => `
+    <div class="criteria-card bg-white">
+      <div class="flex items-start space-x-3">
+        <div class="w-12 h-12 bg-${colors[idx]}-100 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas ${icons[idx]} text-${colors[idx]}-600 text-xl"></i>
+        </div>
+        <div class="flex-1">
+          <div class="flex items-center space-x-2 mb-1">
+            <span class="text-xs font-bold text-msu-orange-600 bg-msu-orange-50 px-2 py-0.5 rounded">เกณฑ์ ${c.CriterionNo}</span>
+          </div>
+          <h4 class="font-bold text-msu-gray-800 text-sm mb-1">${c.TitleTH}</h4>
+          <p class="text-xs text-msu-gray-500">${c.TitleEN}</p>
+          <div class="mt-2 flex items-center space-x-2">
+            <span class="text-xs text-msu-gray-400">น้ำหนัก:</span>
+            <span class="text-xs font-semibold text-msu-gray-700">${c.Weight}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ==================== STAFF ====================
+async function loadStaff() {
+  showLoading();
+  
+  try {
+    const result = await callAPI('getRecords', ['AcademicStaff', AppState.token]);
+    
+    hideLoading();
+    
+    if (result.success) {
+      renderStaffTable(result.data);
+    } else {
+      showToast('error', 'เกิดข้อผิดพลาด', result.message);
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('error', 'เกิดข้อผิดพลาด', error.message);
+  }
+}
+
+function renderStaffTable(data) {
+  const tbody = document.getElementById('staffTableBody');
+  
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-msu-gray-400">ยังไม่มีข้อมูล</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = data.map(s => `
+    <tr class="border-b border-gray-100">
+      <td class="p-3 font-mono text-xs">${s.StaffID || '-'}</td>
+      <td class="p-3 font-medium">${s.NameTH || '-'}</td>
+      <td class="p-3">${s.Position || '-'}</td>
+      <td class="p-3">${s.Degree || '-'}</td>
+      <td class="p-3">${s.AcademicRank || '-'}</td>
+      <td class="p-3 text-center">
+        <span class="px-2 py-1 ${s.Status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'} rounded text-xs font-medium">${s.Status || '-'}</span>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function showAddStaffModal() {
+  showToast('info', 'ฟีเจอร์', 'ฟีเจอร์นี้กำลังพัฒนา');
+}
+
+// ==================== OUTPUTS ====================
+async function loadOutputs() {
+  showLoading();
+  
+  try {
+    const result = await callAPI('getRecords', ['Outputs', AppState.token]);
+    
+    hideLoading();
+    
+    if (result.success) {
+      renderOutputsTable(result.data);
+    } else {
+      showToast('error', 'เกิดข้อผิดพลาด', result.message);
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('error', 'เกิดข้อผิดพลาด', error.message);
+  }
+}
+
+function renderOutputsTable(data) {
+  const tbody = document.getElementById('outputsTableBody');
+  
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-msu-gray-400">ยังไม่มีข้อมูล</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = data.map(o => `
+    <tr class="border-b border-gray-100">
+      <td class="p-3">${o.AcademicYear || '-'}</td>
+      <td class="p-3">
+        <span class="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium">${o.OutputType || '-'}</span>
+      </td>
+      <td class="p-3">${o.Title || '-'}</td>
+      <td class="p-3 text-center font-bold">${o.CitationCount || 0}</td>
+    </tr>
+  `).join('');
+}
+
+function showAddOutputModal() {
+  showToast('info', 'ฟีเจอร์', 'ฟีเจอร์นี้กำลังพัฒนา');
+}
+
+// ==================== ADMIN ====================
+async function loadAdmin() {
+  try {
+    // Load users
+    const usersResult = await callAPI('getRecords', ['Admin', AppState.token]);
+    if (usersResult.success) {
+      renderUsersTable(usersResult.data);
+    }
+    
+    // Load config
+    const configResult = await callAPI('getSystemConfig', [AppState.token]);
+    if (configResult.success) {
+      if (configResult.data.current_academic_year) {
+        document.getElementById('configAcademicYear').value = configResult.data.current_academic_year.value;
+      }
+      if (configResult.data.programme_name) {
+        document.getElementById('configProgrammeName').value = configResult.data.programme_name.value;
+      }
+      if (configResult.data.university_name) {
+        document.getElementById('configUniversity').value = configResult.data.university_name.value;
+      }
+    }
+  } catch (error) {
+    console.error('Error loading admin page:', error);
+  }
+}
+
+function renderUsersTable(data) {
+  const tbody = document.getElementById('usersTableBody');
+  
+  tbody.innerHTML = data.map(u => `
+    <tr class="border-b border-gray-100">
+      <td class="p-3 font-mono text-xs">${u.Username}</td>
+      <td class="p-3 font-medium">${u.FullName}</td>
+      <td class="p-3">
+        <span class="px-2 py-1 bg-msu-orange-50 text-msu-orange-700 rounded text-xs font-medium">${getRoleName(u.RoleID)}</span>
+      </td>
+      <td class="p-3 text-center">
+        <span class="px-2 py-1 ${u.IsActive === 'TRUE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} rounded text-xs font-medium">${u.IsActive === 'TRUE' ? 'ใช้งาน' : 'ระงับ'}</span>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function getRoleName(roleId) {
+  const roles = { 'R001': 'Admin', 'R002': 'Chair', 'R003': 'Faculty', 'R004': 'Staff', 'R005': 'Assessor' };
+  return roles[roleId] || 'Unknown';
+}
+
+async function handleConfigSubmit(e) {
+  e.preventDefault();
+  
+  const updates = [
+    { key: 'current_academic_year', value: document.getElementById('configAcademicYear').value },
+    { key: 'programme_name', value: document.getElementById('configProgrammeName').value },
+    { key: 'university_name', value: document.getElementById('configUniversity').value }
+  ];
+  
+  showLoading();
+  
+  try {
+    let completed = 0;
+    for (const update of updates) {
+      const result = await callAPI('updateSystemConfig', [update.key, update.value, AppState.token]);
+      completed++;
+      
+      if (completed === updates.length) {
+        hideLoading();
+        if (result.success) {
+          showToast('success', 'บันทึกสำเร็จ', 'อัปเดตการตั้งค่าระบบเรียบร้อย');
+        } else {
+          showToast('error', 'เกิดข้อผิดพลาด', result.message);
+        }
+      }
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('error', 'เกิดข้อผิดพลาด', error.message);
+  }
+}
+
+// ==================== UTILITY FUNCTIONS ====================
+function closeModal(modalId) {
+  document.getElementById(modalId).classList.add('hidden');
+}
+
+function showLoading() {
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.add('hidden');
+}
+
+function showToast(type, title, message) {
+  const toast = document.getElementById('toast');
+  const icon = document.getElementById('toastIcon');
+  const titleEl = document.getElementById('toastTitle');
+  const messageEl = document.getElementById('toastMessage');
+  
+  const icons = {
+    'success': { class: 'bg-green-100 text-green-600', icon: 'fa-check' },
+    'error': { class: 'bg-red-100 text-red-600', icon: 'fa-times' },
+    'info': { class: 'bg-blue-100 text-blue-600', icon: 'fa-info' },
+    'warning': { class: 'bg-yellow-100 text-yellow-600', icon: 'fa-exclamation' }
+  };
+  
+  icon.className = `w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${icons[type].class}`;
+  icon.innerHTML = `<i class="fas ${icons[type].icon}"></i>`;
+  titleEl.textContent = title;
+  messageEl.textContent = message;
+  
+  toast.classList.remove('hidden');
+  
+  setTimeout(() => {
+    hideToast();
+  }, 4000);
+}
+
+function hideToast() {
+  document.getElementById('toast').classList.add('hidden');
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('fixed') && e.target.classList.contains('inset-0')) {
+    if (e.target.id === 'addEvidenceModal' || e.target.id === 'scoreModal') {
+      e.target.classList.add('hidden');
+    }
+  }
+});
+
+// ==================== DEVELOPER CONSOLE ====================
+console.log('%c🎓 SAR AUN-QA v4.0 System', 'font-size: 20px; font-weight: bold; color: #E65100;');
+console.log('%cภาควิชาเทคโนโลยีและสื่อสารการศึกษา', 'font-size: 12px; color: #37474F;');
+console.log('%cคณะศึกษาศาสตร์ มหาวิทยาลัยมหาสารคาม', 'font-size: 12px; color: #37474F;');
+console.log('%c✅ External Version (fetch API)', 'font-size: 10px; color: #22c55e;');
+console.log(`%c🔗 API Base URL: ${API_BASE_URL}`, 'font-size: 10px; color: #3b82f6;');
+</script>
