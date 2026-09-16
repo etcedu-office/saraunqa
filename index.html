@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAR System - AUN-QA v4.0 | TCED MSU</title>
+
+  <!-- ==================== CDN LIBRARIES ==================== -->
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts - Sarabun -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Chart.js 4 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- ==================== TAILWIND CONFIG ==================== -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'sarabun': ['Sarabun', 'sans-serif'],
+          },
+          colors: {
+            'msu-orange': {
+              50:  '#FFF3E0', 100: '#FFE0B2', 200: '#FFCC80',
+              300: '#FFB74D', 400: '#FFA726', 500: '#F57C00',
+              600: '#E65100', 700: '#BF360C', 800: '#8B2500', 900: '#5D1900',
+            },
+            'msu-gray': {
+              50:  '#ECEFF1', 100: '#CFD8DC', 200: '#B0BEC5',
+              300: '#90A4AE', 400: '#78909C', 500: '#607D8B',
+              600: '#546E7A', 700: '#455A64', 800: '#37474F', 900: '#263238',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- ==================== CUSTOM STYLES ==================== -->
+  <style>
+    /* ---------- Base ---------- */
+    * { font-family: 'Sarabun', sans-serif; }
+    body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+    /* ---------- Custom Scrollbar ---------- */
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; transition: background .2s; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* ---------- Sidebar Navigation ---------- */
+    .nav-item {
+      display: flex; align-items: center; padding: .625rem .75rem;
+      border-radius: .5rem; color: #455a64; font-size: .875rem;
+      font-weight: 500; transition: all .2s; text-decoration: none;
+    }
+    .nav-item i { width: 1.25rem; margin-right: .75rem; font-size: .9rem; text-align: center; }
+    .nav-item:hover { background-color: #fff3e0; color: #e65100; }
+    .nav-item.active {
+      background: linear-gradient(135deg, #f57c00, #e65100);
+      color: #fff; box-shadow: 0 2px 8px rgba(230,81,0,.3);
+    }
+    .nav-item.active:hover { background: linear-gradient(135deg, #e65100, #bf360c); color: #fff; }
+
+    /* ---------- Page Content Animation ---------- */
+    .page-content { animation: fadeIn .3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ---------- Score Badges ---------- */
+    .score-badge { display: inline-flex; align-items: center; padding: .25rem .75rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; }
+    .score-badge-green  { background-color: #dcfce7; color: #166534; }
+    .score-badge-yellow { background-color: #fef3c7; color: #92400e; }
+    .score-badge-red    { background-color: #fee2e2; color: #991b1b; }
+    .score-badge-gray   { background-color: #f1f5f9; color: #64748b; }
+
+    /* ---------- PDCA Borders ---------- */
+    .pdca-plan  { border-left: 4px solid #3b82f6; }
+    .pdca-do    { border-left: 4px solid #22c55e; }
+    .pdca-check { border-left: 4px solid #eab308; }
+    .pdca-act   { border-left: 4px solid #ef4444; }
+
+    /* ---------- Table ---------- */
+    table { border-collapse: separate; border-spacing: 0; }
+    table thead tr th { position: sticky; top: 0; background-color: #f9fafb; z-index: 10; }
+    table tbody tr { transition: background-color .15s; }
+    table tbody tr:hover { background-color: #fff7ed; }
+
+    /* ---------- Icon Button ---------- */
+    .btn-icon {
+      width: 2rem; height: 2rem; display: inline-flex; align-items: center;
+      justify-content: center; border-radius: .375rem; transition: all .2s;
+    }
+    .btn-icon:hover { transform: scale(1.1); }
+
+    /* ---------- Spinner ---------- */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .animate-spin { animation: spin 1s linear infinite; }
+
+    /* ---------- Toast ---------- */
+    #toast { animation: slideInRight .3s ease-out; }
+    @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* ---------- Modal ---------- */
+    .modal-enter { animation: modalFadeIn .2s ease-out; }
+    @keyframes modalFadeIn { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
+
+    /* ---------- Progress Bar ---------- */
+    .progress-bar { height: 8px; border-radius: 4px; background-color: #e5e7eb; overflow: hidden; }
+    .progress-bar-fill { height: 100%; border-radius: 4px; transition: width .5s ease-in-out; }
+
+    /* ---------- Criteria Card ---------- */
+    .criteria-card {
+      border: 1px solid #e5e7eb; border-radius: .75rem; padding: 1.25rem;
+      transition: all .2s; cursor: pointer;
+    }
+    .criteria-card:hover {
+      border-color: #f57c00; box-shadow: 0 4px 12px rgba(230,81,0,.1); transform: translateY(-2px);
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 1024px) {
+      #sidebar { transform: translateX(-100%); transition: transform .3s; }
+      #sidebar.open { transform: translateX(0); }
+      .ml-64 { margin-left: 0 !important; }
+    }
+
+    /* ---------- Focus ---------- */
+    input:focus, textarea:focus, select:focus { outline: none; }
+
+    /* ---------- Print ---------- */
+    @media print {
+      #sidebar, header, .btn-icon, button { display: none !important; }
+      .ml-64 { margin-left: 0 !important; }
+      .page-content { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+
+<body class="font-sarabun bg-gray-50 text-msu-gray-800">
+
+  <!-- ================================================================ -->
+  <!--                        LOGIN SCREEN                              -->
+  <!-- ================================================================ -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-msu-orange-50 via-white to-msu-gray-50">
+    <div class="w-full max-w-md">
+      <div class="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
+
+        <!-- Logo & Header -->
+        <div class="text-center mb-8">
+          <div class="w-20 h-20 mx-auto bg-gradient-to-br from-msu-orange-500 to-msu-orange-700 rounded-2xl flex items-center justify-center shadow-lg mb-4">
+            <i class="fas fa-graduation-cap text-white text-3xl"></i>
+          </div>
+          <h1 class="text-2xl font-bold text-msu-gray-800">SAR AUN-QA v4.0</h1>
+          <p class="text-sm text-msu-gray-500 mt-1">ภาควิชาเทคโนโลยีและสื่อสารการศึกษา</p>
+          <p class="text-xs text-msu-gray-400">คณะศึกษาศาสตร์ มหาวิทยาลัยมหาสารคาม</p>
+        </div>
+
+        <!-- Login Form -->
+        <form id="loginForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-msu-gray-700 mb-1">
+              <i class="fas fa-user mr-1"></i> ชื่อผู้ใช้
+            </label>
+            <input type="text" id="loginUsername" required
+              class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-msu-orange-500 focus:border-transparent transition"
+              placeholder="กรอกชื่อผู้ใช้">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-msu-gray-700 mb-1">
+              <i class="fas fa-lock mr-1"></i> รหัสผ่าน
+            </label>
+            <div class="relative">
+              <input type="password" id="loginPassword" required
+                class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-msu-orange-500 focus:border-transparent transition"
+                placeholder="กรอกรหัสผ่าน">
+              <button type="button" onclick="togglePasswordVisibility()"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-msu-orange-500">
+                <i class="fas fa-eye" id="togglePasswordIcon"></i>
+              </button>
+            </div>
+          </div>
+          <button type="submit" id="loginBtn"
+            class="w-full bg-gradient-to-r from-msu-orange-500 to-msu-orange-600 text-white py-3 rounded-lg font-semibold hover:from-msu-orange-600 hover:to-msu-orange-700 transition shadow-lg hover:shadow-xl">
+            <i class="fas fa-sign-in-alt mr-2"></i> เข้าสู่ระบบ
+          </button>
+        </form>
+
+        <div id="loginError" class="hidden mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm text-center"></div>
+
+        <div class="mt-6 text-center text-xs text-gray-400">
+          <p>Default: admin / admin123</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!--                        MAIN APPLICATION                          -->
+  <!-- ================================================================ -->
+  <div id="mainApp" class="hidden min-h-screen flex">
+
+    <!-- ==================== SIDEBAR ==================== -->
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm fixed h-full z-30">
+      <!-- Sidebar Header -->
+      <div class="p-4 border-b border-gray-100">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-msu-orange-500 to-msu-orange-700 rounded-lg flex items-center justify-center">
+            <i class="fas fa-graduation-cap text-white"></i>
+          </div>
+          <div>
+            <h2 class="font-bold text-sm text-msu-gray-800">SAR System</h2>
+            <p class="text-xs text-msu-gray-500">AUN-QA v4.0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+        <a href="#" onclick="navigateTo('dashboard')" class="nav-item active" data-page="dashboard">
+          <i class="fas fa-chart-pie"></i> <span>แดชบอร์ด</span>
+        </a>
+        <a href="#" onclick="navigateTo('sar-entry')" class="nav-item" data-page="sar-entry">
+          <i class="fas fa-file-alt"></i> <span>กรอกข้อมูล SAR</span>
+        </a>
+        <a href="#" onclick="navigateTo('evidence')" class="nav-item" data-page="evidence">
+          <i class="fas fa-folder-open"></i> <span>คลังหลักฐาน</span>
+        </a>
+        <a href="#" onclick="navigateTo('scores')" class="nav-item" data-page="scores">
+          <i class="fas fa-star-half-alt"></i> <span>ประเมินคะแนน</span>
+        </a>
+        <a href="#" onclick="navigateTo('criteria')" class="nav-item" data-page="criteria">
+          <i class="fas fa-list-check"></i> <span>เกณฑ์ AUN-QA</span>
+        </a>
+
+        <div class="pt-4 pb-2">
+          <p class="text-xs font-semibold text-msu-gray-400 uppercase tracking-wider px-3">การจัดการ</p>
+        </div>
+        <a href="#" onclick="navigateTo('staff')" class="nav-item" data-page="staff">
+          <i class="fas fa-users"></i> <span>บุคลากร</span>
+        </a>
+        <a href="#" onclick="navigateTo('outputs')" class="nav-item" data-page="outputs">
+          <i class="fas fa-book"></i> <span>ผลงานวิชาการ</span>
+        </a>
+        <a href="#" onclick="navigateTo('admin')" class="nav-item admin-only" data-page="admin">
+          <i class="fas fa-cog"></i> <span>จัดการระบบ</span>
+        </a>
+      </nav>
+
+      <!-- Sidebar Footer -->
+      <div class="p-4 border-t border-gray-100">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 bg-msu-orange-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-user text-msu-orange-600 text-sm"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p id="sidebarUserName" class="text-sm font-medium truncate">-</p>
+            <p id="sidebarUserRole" class="text-xs text-msu-gray-500 truncate">-</p>
+          </div>
+          <button onclick="handleLogout()" class="text-msu-gray-400 hover:text-red-500 transition" title="ออกจากระบบ">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ==================== MAIN CONTENT ==================== -->
+    <div class="flex-1 ml-64">
+
+      <!-- Top Bar -->
+      <header class="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-20">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <button onclick="toggleSidebar()" class="lg:hidden text-msu-gray-600 hover:text-msu-orange-500">
+              <i class="fas fa-bars text-xl"></i>
+            </button>
+            <div>
+              <h1 id="pageTitle" class="text-xl font-bold text-msu-gray-800">แดชบอร์ด</h1>
+              <p id="pageSubtitle" class="text-xs text-msu-gray-500">ภาพรวมผลการดำเนินงาน SAR</p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-3">
+            <select id="academicYearSelect" class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-msu-orange-500">
+              <option value="2567">ปีการศึกษา 2567</option>
+              <option value="2566">ปีการศึกษา 2566</option>
+              <option value="2565">ปีการศึกษา 2565</option>
+            </select>
+            <div class="hidden md:flex items-center space-x-2 bg-msu-orange-50 px-3 py-2 rounded-lg">
+              <i class="fas fa-calendar-alt text-msu-orange-500"></i>
+              <span class="text-sm font-medium text-msu-orange-700">AY <span id="currentYearDisplay">2567</span></span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Page Content Container -->
+      <main class="p-6">
+
+        <!-- ============ PAGE: DASHBOARD ============ -->
+        <div id="page-dashboard" class="page-content">
+          <!-- Stats Cards -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm text-msu-gray-500">คะแนนรวมเฉลี่ย</p>
+                  <p id="statTotalScore" class="text-3xl font-bold text-msu-orange-600 mt-1">0.00</p>
+                </div>
+                <div class="w-12 h-12 bg-msu-orange-100 rounded-lg flex items-center justify-center">
+                  <i class="fas fa-chart-line text-msu-orange-600 text-xl"></i>
+                </div>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm text-msu-gray-500">ความคืบหน้า</p>
+                  <p id="statCompletion" class="text-3xl font-bold text-green-600 mt-1">0%</p>
+                </div>
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <i class="fas fa-tasks text-green-600 text-xl"></i>
+                </div>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm text-msu-gray-500">จำนวนเกณฑ์</p>
+                  <p class="text-3xl font-bold text-blue-600 mt-1">8</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <i class="fas fa-list-ol text-blue-600 text-xl"></i>
+                </div>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm text-msu-gray-500">หลักฐาน</p>
+                  <p id="statEvidence" class="text-3xl font-bold text-purple-600 mt-1">0</p>
+                </div>
+                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <i class="fas fa-folder text-purple-600 text-xl"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Row -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Radar Chart -->
+            <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+              <h3 class="text-lg font-bold text-msu-gray-800 mb-4">
+                <i class="fas fa-chart-radar text-msu-orange-500 mr-2"></i>กราฟรังสี 8 เกณฑ์ AUN-QA
+              </h3>
+              <div class="relative" style="height:350px;">
+                <canvas id="radarChart"></canvas>
+              </div>
+            </div>
+            <!-- Criteria Status -->
+            <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+              <h3 class="text-lg font-bold text-msu-gray-800 mb-4">
+                <i class="fas fa-clipboard-check text-msu-orange-500 mr-2"></i>สถานะแต่ละเกณฑ์
+              </h3>
+              <div id="criteriaStatusList" class="space-y-3 max-h-80 overflow-y-auto custom-scrollbar"></div>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+            <h3 class="text-lg font-bold text-msu-gray-800 mb-4">
+              <i class="fas fa-history text-msu-orange-500 mr-2"></i>กิจกรรมล่าสุด
+            </h3>
+            <div id="recentActivity" class="space-y-2">
+              <p class="text-sm text-msu-gray-400 text-center py-8">ยังไม่มีกิจกรรม</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ PAGE: SAR ENTRY ============ -->
+        <div id="page-sar-entry" class="page-content hidden">
+          <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+            <div class="flex items-center justify-between mb-6">
+              <h3 class="text-lg font-bold text-msu-gray-800">
+                <i class="fas fa-edit text-msu-orange-500 mr-2"></i>กรอกข้อมูล SAR (PDCA)
+              </h3>
+              <select id="sarCriterionSelect" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" onchange="loadSARForm()">
+                <option value="">-- เลือกเกณฑ์ --</option>
+              </select>
+            </div>
+            <form id="sarForm" class="space-y-4">
+              <!-- Plan -->
+              <div class="border border-gray-200 rounded-lg p-4">
+                <label class="flex items-center text-sm font-semibold text-blue-700 mb-2">
+                  <span class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-2 text-blue-700 font-bold">P</span>
+                  Plan - การวางแผน
+                </label>
+                <textarea id="sarPlan" rows="3" class="w-full border border-gray-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500" placeholder="อธิบายการวางแผน..."></textarea>
+              </div>
+              <!-- Do -->
+              <div class="border border-gray-200 rounded-lg p-4">
+                <label class="flex items-center text-sm font-semibold text-green-700 mb-2">
+                  <span class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-2 text-green-700 font-bold">D</span>
+                  Do - การดำเนินการ
+                </label>
+                <textarea id="sarDo" rows="3" class="w-full border border-gray-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-green-500" placeholder="อธิบายการดำเนินการ..."></textarea>
+              </div>
+              <!-- Check -->
+              <div class="border border-gray-200 rounded-lg p-4">
+                <label class="flex items-center text-sm font-semibold text-yellow-700 mb-2">
+                  <span class="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center mr-2 text-yellow-700 font-bold">C</span>
+                  Check - การตรวจสอบ
+                </label>
+                <textarea id="sarCheck" rows="3" class="w-full border border-gray-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-yellow-500" placeholder="อธิบายการตรวจสอบ..."></textarea>
+              </div>
+              <!-- Act -->
+              <div class="border border-gray-200 rounded-lg p-4">
+                <label class="flex items-center text-sm font-semibold text-red-700 mb-2">
+                  <span class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-2 text-red-700 font-bold">A</span>
+                  Act - การปรับปรุง
+                </label>
+                <textarea id="sarAct" rows="3" class="w-full border border-gray-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-500" placeholder="อธิบายการปรับปรุง..."></textarea>
+              </div>
+              <!-- Strengths & Improvements -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="border border-green-200 bg-green-50 rounded-lg p-4">
+                  <label class="text-sm font-semibold text-green-700 mb-2 block"><i class="fas fa-thumbs-up mr-1"></i> จุดแข็ง (Strengths)</label>
+                  <textarea id="sarStrengths" rows="3" class="w-full border border-green-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-green-500" placeholder="ระบุจุดแข็ง..."></textarea>
+                </div>
+                <div class="border border-orange-200 bg-orange-50 rounded-lg p-4">
+                  <label class="text-sm font-semibold text-orange-700 mb-2 block"><i class="fas fa-tools mr-1"></i> พื้นที่ปรับปรุง (Improvement Areas)</label>
+                  <textarea id="sarImprovements" rows="3" class="w-full border border-orange-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-orange-500" placeholder="ระบุพื้นที่ที่ต้องปรับปรุง..."></textarea>
+                </div>
+              </div>
+              <!-- Buttons -->
+              <div class="flex justify-end space-x-3 pt-4">
+                <button type="button" onclick="resetSARForm()" class="px-4 py-2 border border-gray-200 rounded-lg text-msu-gray-600 hover:bg-gray-50">
+                  <i class="fas fa-undo mr-1"></i> ล้างข้อมูล
+                </button>
+                <button type="submit" class="px-6 py-2 bg-gradient-to-r from-msu-orange-500 to-msu-orange-600 text-white rounded-lg font-semibold hover:from-msu-orange-600 hover:to-msu-orange-700 shadow">
+                  <i class="fas fa-save mr-1"></i> บันทึกข้อมูล
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- ============ PAGE: EVIDENCE ============ -->
+        <div id="page-evidence" class="page-content hidden">
+          <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+            <div class="flex items-center justify-between mb-6">
+              <h3 class="text-lg font-bold text-msu-gray-800"><i class="fas fa-folder-open text-msu-orange-500 mr-2"></i>คลังหลักฐาน (Evidence)</h3>
+              <button onclick="showAddEvidenceModal()" class="px-4 py-2 bg-gradient-to-r from-msu-orange-500 to-msu-orange-600 text-white rounded-lg font-semibold hover:from-msu-orange-600 hover:to-msu-orange-700 shadow">
+                <i class="fas fa-plus mr-1"></i> เพิ่มหลักฐาน
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-gray-50 border-b border-gray-200">
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">รหัส</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">ชื่อหลักฐาน</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">ประเภท</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">ลิงก์</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">วันที่เพิ่ม</th>
+                    <th class="text-center p-3 font-semibold text-msu-gray-700">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="evidenceTableBody">
+                  <tr><td colspan="6" class="text-center py-8 text-msu-gray-400">ยังไม่มีข้อมูลหลักฐาน</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ PAGE: SCORES ============ -->
+        <div id="page-scores" class="page-content hidden">
+          <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+            <h3 class="text-lg font-bold text-msu-gray-800 mb-6"><i class="fas fa-star-half-alt text-msu-orange-500 mr-2"></i>ประเมินคะแนน (Score Assessment Matrix)</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-gray-50 border-b border-gray-200">
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">เกณฑ์ที่</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">ชื่อเกณฑ์</th>
+                    <th class="text-center p-3 font-semibold text-msu-gray-700">คะแนนตนเอง (1-7)</th>
+                    <th class="text-center p-3 font-semibold text-msu-gray-700">คะแนนผู้ประเมิน (1-7)</th>
+                    <th class="text-center p-3 font-semibold text-msu-gray-700">สถานะ</th>
+                    <th class="text-center p-3 font-semibold text-msu-gray-700">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="scoresTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ PAGE: CRITERIA ============ -->
+        <div id="page-criteria" class="page-content hidden">
+          <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+            <h3 class="text-lg font-bold text-msu-gray-800 mb-6"><i class="fas fa-list-check text-msu-orange-500 mr-2"></i>เกณฑ์ AUN-QA v4.0 (8 เกณฑ์)</h3>
+            <div id="criteriaCards" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+          </div>
+        </div>
+
+        <!-- ============ PAGE: STAFF ============ -->
+        <div id="page-staff" class="page-content hidden">
+          <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+            <div class="flex items-center justify-between mb-6">
+              <h3 class="text-lg font-bold text-msu-gray-800"><i class="fas fa-users text-msu-orange-500 mr-2"></i>บุคลากร</h3>
+              <button onclick="showAddStaffModal()" class="px-4 py-2 bg-gradient-to-r from-msu-orange-500 to-msu-orange-600 text-white rounded-lg font-semibold hover:from-msu-orange-600 hover:to-msu-orange-700 shadow">
+                <i class="fas fa-plus mr-1"></i> เพิ่มบุคลากร
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-gray-50 border-b border-gray-200">
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">รหัส</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">ชื่อ-นามสกุล</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">ตำแหน่ง</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">วุฒิการศึกษา</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">ตำแหน่งทางวิชาการ</th>
+                    <th class="text-center p-3 font-semibold text-msu-gray-700">สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody id="staffTableBody">
+                  <tr><td colspan="6" class="text-center py-8 text-msu-gray-400">ยังไม่มีข้อมูล</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ PAGE: OUTPUTS ============ -->
+        <div id="page-outputs" class="page-content hidden">
+          <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+            <div class="flex items-center justify-between mb-6">
+              <h3 class="text-lg font-bold text-msu-gray-800"><i class="fas fa-book text-msu-orange-500 mr-2"></i>ผลงานวิชาการ</h3>
+              <button onclick="showAddOutputModal()" class="px-4 py-2 bg-gradient-to-r from-msu-orange-500 to-msu-orange-600 text-white rounded-lg font-semibold hover:from-msu-orange-600 hover:to-msu-orange-700 shadow">
+                <i class="fas fa-plus mr-1"></i> เพิ่มผลงาน
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-gray-50 border-b border-gray-200">
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">ปี</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">ประเภท</th>
+                    <th class="text-left p-3 font-semibold text-msu-gray-700">ชื่อผลงาน</th>
+                    <th class="text-center p-3 font-semibold text-msu-gray-700">จำนวนการอ้างอิง</th>
+                  </tr>
+                </thead>
+                <tbody id="outputsTableBody">
+                  <tr><td colspan="4" class="text-center py-8 text-msu-gray-400">ยังไม่มีข้อมูล</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ PAGE: ADMIN ============ -->
+        <div id="page-admin" class="page-content hidden">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Users Management -->
+            <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+              <h3 class="text-lg font-bold text-msu-gray-800 mb-4"><i class="fas fa-user-cog text-msu-orange-500 mr-2"></i>จัดการผู้ใช้</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="bg-gray-50 border-b border-gray-200">
+                      <th class="text-left p-3 font-semibold text-msu-gray-700">ชื่อผู้ใช้</th>
+                      <th class="text-left p-3 font-semibold text-msu-gray-700">ชื่อ-นามสกุล</th>
+                      <th class="text-left p-3 font-semibold text-msu-gray-700">สิทธิ์</th>
+                      <th class="text-center p-3 font-semibold text-msu-gray-700">สถานะ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usersTableBody">
+                    <tr><td colspan="4" class="text-center py-8 text-msu-gray-400">กำลังโหลด...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <!-- System Config -->
+            <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+              <h3 class="text-lg font-bold text-msu-gray-800 mb-4"><i class="fas fa-sliders-h text-msu-orange-500 mr-2"></i>ตั้งค่าระบบ</h3>
+              <form id="configForm" class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-msu-gray-700 mb-1">ปีการศึกษาปัจจุบัน</label>
+                  <input type="text" id="configAcademicYear" class="w-full border border-gray-200 rounded-lg p-2 text-sm" value="2567">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-msu-gray-700 mb-1">ชื่อหลักสูตร</label>
+                  <input type="text" id="configProgrammeName" class="w-full border border-gray-200 rounded-lg p-2 text-sm" value="เทคโนโลยีและสื่อสารการศึกษา">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-msu-gray-700 mb-1">ชื่อมหาวิทยาลัย</label>
+                  <input type="text" id="configUniversity" class="w-full border border-gray-200 rounded-lg p-2 text-sm" value="มหาวิทยาลัยมหาสารคาม">
+                </div>
+                <button type="submit" class="w-full px-4 py-2 bg-gradient-to-r from-msu-orange-500 to-msu-orange-600 text-white rounded-lg font-semibold hover:from-msu-orange-600 hover:to-msu-orange-700 shadow">
+                  <i class="fas fa-save mr-1"></i> บันทึกการตั้งค่า
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!--                           MODALS                                 -->
+  <!-- ================================================================ -->
+
+  <!-- Add Evidence Modal -->
+  <div id="addEvidenceModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl modal-enter">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-msu-gray-800">เพิ่มหลักฐาน</h3>
+        <button onclick="closeModal('addEvidenceModal')" class="text-msu-gray-400 hover:text-msu-gray-600"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="evidenceForm" class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-msu-gray-700 mb-1">รหัสหลักฐาน</label>
+          <input type="text" id="evCode" required class="w-full border border-gray-200 rounded-lg p-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-msu-gray-700 mb-1">ชื่อหลักฐาน</label>
+          <input type="text" id="evTitle" required class="w-full border border-gray-200 rounded-lg p-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-msu-gray-700 mb-1">ลิงก์ Google Drive</label>
+          <input type="url" id="evUrl" required class="w-full border border-gray-200 rounded-lg p-2 text-sm" placeholder="https://drive.google.com/...">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-msu-gray-700 mb-1">ประเภทไฟล์</label>
+          <select id="evType" class="w-full border border-gray-200 rounded-lg p-2 text-sm">
+            <option value="PDF">PDF</option>
+            <option value="DOCX">Word Document</option>
+            <option value="XLSX">Excel Spreadsheet</option>
+            <option value="PPTX">PowerPoint</option>
+            <option value="LINK">ลิงก์ภายนอก</option>
+            <option value="IMAGE">รูปภาพ</option>
+          </select>
+        </div>
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="closeModal('addEvidenceModal')" class="px-4 py-2 border border-gray-200 rounded-lg text-sm">ยกเลิก</button>
+          <button type="submit" class="px-4 py-2 bg-msu-orange-500 text-white rounded-lg text-sm font-semibold">บันทึก</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Score Modal -->
+  <div id="scoreModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl modal-enter">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-msu-gray-800">ให้คะแนนเกณฑ์</h3>
+        <button onclick="closeModal('scoreModal')" class="text-msu-gray-400 hover:text-msu-gray-600"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="scoreForm" class="space-y-4">
+        <input type="hidden" id="scoreCriterionId">
+        <div>
+          <label class="block text-sm font-medium text-msu-gray-700 mb-2">เกณฑ์: <span id="scoreCriterionName" class="font-bold"></span></label>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-msu-gray-700 mb-1">คะแนนประเมินตนเอง (1-7)</label>
+          <input type="number" id="scoreSelf" min="1" max="7" step="1" class="w-full border border-gray-200 rounded-lg p-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-msu-gray-700 mb-1">คะแนนผู้ประเมิน (1-7)</label>
+          <input type="number" id="scoreAssessor" min="1" max="7" step="1" class="w-full border border-gray-200 rounded-lg p-2 text-sm">
+        </div>
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="closeModal('scoreModal')" class="px-4 py-2 border border-gray-200 rounded-lg text-sm">ยกเลิก</button>
+          <button type="submit" class="px-4 py-2 bg-msu-orange-500 text-white rounded-lg text-sm font-semibold">บันทึก</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!--                     TOAST & LOADING                              -->
+  <!-- ================================================================ -->
+
+  <!-- Toast Notification -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 z-50 bg-white rounded-lg shadow-2xl border border-gray-200 p-4 max-w-sm">
+    <div class="flex items-start space-x-3">
+      <div id="toastIcon" class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"></div>
+      <div class="flex-1">
+        <p id="toastTitle" class="font-semibold text-sm"></p>
+        <p id="toastMessage" class="text-xs text-msu-gray-500 mt-1"></p>
+      </div>
+      <button onclick="hideToast()" class="text-msu-gray-400 hover:text-msu-gray-600"><i class="fas fa-times"></i></button>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+    <div class="bg-white rounded-xl p-6 flex items-center space-x-3 shadow-2xl">
+      <div class="w-8 h-8 border-4 border-msu-orange-500 border-t-transparent rounded-full animate-spin"></div>
+      <span class="text-msu-gray-700 font-medium">กำลังโหลด...</span>
+    </div>
+  </div>
+
+  <!-- ==================== EXTERNAL SCRIPT ==================== -->
+  <!-- ⚠️ ไฟล์ scripts.js คือไฟล์ scripts.html ที่ rename มา -->
+  <script src="scripts.js"></script>
+
+</body>
+</html>
